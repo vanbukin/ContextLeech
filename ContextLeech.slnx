@@ -1,0 +1,13 @@
+<Solution>
+    <Folder Name="/root/">
+        <File Path=".editorconfig"/>
+        <File Path=".gitattributes"/>
+        <File Path=".gitignore"/>
+        <File Path="global.json"/>
+        <File Path="LICENSE"/>
+        <File Path="Directory.Build.props"/>
+    </Folder>
+    <Folder Name="/root/src/">
+        <Project Path="src/ContextLeech/ContextLeech.csproj"/>
+    </Folder>
+</Solution>

@@ -11,15 +11,15 @@ charset = utf-8
 max_line_length = 999999999
 # Xml project files
 [*.csproj]
-indent_size = 2
-ij_formatter_enabled = false
+indent_size = 4
+ij_formatter_enabled = true
 # Xml config files
 [*.props]
-indent_size = 2
-ij_formatter_enabled = false
+indent_size = 4
+ij_formatter_enabled = true
 # Xml files
 [*.xml]
-indent_size = 2
+indent_size = 4
 # C# files
 [{*.cs,*.cshtml}]
 # Indentation and spacing
@@ -289,3 +289,7 @@ csharp_place_method_attribute_on_same_line = false
 csharp_place_accessorholder_attribute_on_same_line = false
 csharp_place_accessor_attribute_on_same_line = false
 csharp_place_field_attribute_on_same_line = false
+# Diagnostics
+# CA1303: Do not pass literals as localized parameters
+# A method passes a string literal as a parameter to a .NET constructor or method and that string should be localizable.
+dotnet_diagnostic.CA1303.severity = suggestion
