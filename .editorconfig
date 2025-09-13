@@ -290,6 +290,15 @@ csharp_place_accessorholder_attribute_on_same_line = false
 csharp_place_accessor_attribute_on_same_line = false
 csharp_place_field_attribute_on_same_line = false
 # Diagnostics
+# CA1024: Use properties where appropriate
+# A method has a name that starts with Get, takes no parameters, and returns a value that's not an array.
+dotnet_diagnostic.CA1024.severity = suggestion
 # CA1303: Do not pass literals as localized parameters
 # A method passes a string literal as a parameter to a .NET constructor or method and that string should be localizable.
 dotnet_diagnostic.CA1303.severity = suggestion
+# CA1515: Consider making public types internal
+# A type inside an executable assembly is declared as public.
+dotnet_diagnostic.CA1515.severity = suggestion
+# CA1716: Identifiers should not match keywords
+# The name of a namespace, type, or virtual or interface member matches a reserved keyword in a programming language.
+dotnet_diagnostic.CA1716.severity = suggestion
