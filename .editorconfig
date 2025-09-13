@@ -302,3 +302,6 @@ dotnet_diagnostic.CA1515.severity = suggestion
 # CA1716: Identifiers should not match keywords
 # The name of a namespace, type, or virtual or interface member matches a reserved keyword in a programming language.
 dotnet_diagnostic.CA1716.severity = suggestion
+# CA2007: Do not directly await a Task
+# An asynchronous method awaits a Task directly.
+dotnet_diagnostic.CA2007.severity = suggestion

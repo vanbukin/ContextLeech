@@ -3,8 +3,8 @@
     "profiles": {
         "ContextLeech": {
             "commandName": "Project",
-            "dotnetRunMessages": true,
-            "launchBrowser": true,
+            "dotnetRunMessages": false,
+            "launchBrowser": false,
             "applicationUrl": "http://localhost:5204",
             "environmentVariables": {
                 "ASPNETCORE_ENVIRONMENT": "Development"
