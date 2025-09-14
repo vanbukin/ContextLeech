@@ -163,11 +163,4 @@ public class DefaultProjectScanner : IProjectScanner
 
         return new();
     }
-
-    private static string NormalizeDirPath(string path)
-    {
-        var full = Path.GetFullPath(path);
-        full = $"{full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)}{Path.DirectorySeparatorChar}";
-        return full;
-    }
 }

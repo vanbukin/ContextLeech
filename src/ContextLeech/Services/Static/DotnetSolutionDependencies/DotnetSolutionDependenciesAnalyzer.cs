@@ -5,12 +5,13 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using ContextLeech.Services.Static.DotnetSolutionDependencies.Models;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 
-namespace ContextLeech.Services.Static;
+namespace ContextLeech.Services.Static.DotnetSolutionDependencies;
 
 public static class DotnetSolutionDependenciesAnalyzer
 {
@@ -19,7 +20,7 @@ public static class DotnetSolutionDependenciesAnalyzer
         .GetTypes()
         .Single(x => x is { Namespace: "Microsoft.CodeAnalysis.CSharp.Symbols.PublicModel", Name: "NonSourceAssemblySymbol" });
 
-    public static async Task<Dictionary<string, HashSet<string>>> AnalyzeSolutionAsync(string absolutePathToSolutionFile)
+    public static async Task<DependenciesGraph> AnalyzeSolutionAsync(string absolutePathToSolutionFile)
     {
         var results = new ConcurrentBag<AnalyzeResult>();
         using var workspace = MSBuildWorkspace.Create();
@@ -48,22 +49,38 @@ public static class DotnetSolutionDependenciesAnalyzer
             }
         });
 
-        var dependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var upstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var foundDependency in results)
         {
-            if (!dependenciesGraph.TryGetValue(foundDependency.FullPath, out var value))
+            if (!upstreamDependenciesGraph.TryGetValue(foundDependency.FullPath, out var upstreamDependencies))
             {
-                value = new(StringComparer.OrdinalIgnoreCase);
-                dependenciesGraph[foundDependency.FullPath] = value;
+                upstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
+                upstreamDependenciesGraph[foundDependency.FullPath] = upstreamDependencies;
             }
 
             foreach (var dependency in foundDependency.DependsFullPaths)
             {
-                value.Add(dependency);
+                upstreamDependencies.Add(dependency);
             }
         }
 
-        return dependenciesGraph;
+        var downstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (downstreamDependency, upstreamDependencies) in upstreamDependenciesGraph)
+        {
+            foreach (var upstreamDependency in upstreamDependencies)
+            {
+                if (!downstreamDependenciesGraph.TryGetValue(upstreamDependency, out var downstreamDependencies))
+                {
+                    downstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
+                    downstreamDependenciesGraph[upstreamDependency] = downstreamDependencies;
+                }
+
+                downstreamDependencies.Add(downstreamDependency);
+            }
+        }
+
+        return new(upstreamDependenciesGraph, downstreamDependenciesGraph);
     }
 
     private static async Task<List<AnalyzeResult>> AnalyzeCompilationAsync(

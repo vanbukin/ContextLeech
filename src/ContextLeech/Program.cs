@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
-using ContextLeech.Services.Static;
+using ContextLeech.Services.Static.DotnetSolutionDependencies;
 
 namespace ContextLeech;
 
@@ -14,7 +14,7 @@ public static class Program
     {
         var solutionPath = "";
         var result = await DotnetSolutionDependenciesAnalyzer.AnalyzeSolutionAsync(solutionPath);
-        PrintResults(result);
+        PrintResults(result.Upstream);
         Console.WriteLine();
     }
 
