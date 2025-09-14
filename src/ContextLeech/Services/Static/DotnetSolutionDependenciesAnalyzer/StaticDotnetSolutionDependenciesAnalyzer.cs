@@ -4,27 +4,94 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
-using ContextLeech.Services.Static.DotnetSolutionDependencies.Models;
+using ContextLeech.Constants;
+using ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer.Models;
+using ContextLeech.Services.Static.FileIo;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 
-namespace ContextLeech.Services.Static.DotnetSolutionDependencies;
+namespace ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer;
 
-public static class DotnetSolutionDependenciesAnalyzer
+public static class StaticDotnetSolutionDependenciesAnalyzer
 {
+    private const string GraphFile = "graph.json";
+
     private static readonly Type NonSourceAssemblySymbolType = typeof(CSharpSyntaxVisitor)
         .Assembly
         .GetTypes()
         .Single(x => x is { Namespace: "Microsoft.CodeAnalysis.CSharp.Symbols.PublicModel", Name: "NonSourceAssemblySymbol" });
 
-    public static async Task<DependenciesGraph> AnalyzeSolutionAsync(string absolutePathToSolutionFile)
+    public static void Save(DependenciesGraph graph)
     {
+        ArgumentNullException.ThrowIfNull(graph);
+        var json = graph.Serialize();
+        var projectFile = Path.Combine(
+            graph.GetRoot().FullName,
+            FileSystemConstants.ContextLeechRootDirectory,
+            FileSystemConstants.MetadataSubDirectory,
+            GraphFile);
+        StaticFileIo.Write(projectFile, json, Encoding.UTF8);
+    }
+
+    public static bool TryReadExisting(DirectoryInfo projectRoot, [NotNullWhen(true)] out DependenciesGraph? graph)
+    {
+        ArgumentNullException.ThrowIfNull(projectRoot);
+
+        var projectFilePath = Path.Combine(
+            projectRoot.FullName,
+            FileSystemConstants.ContextLeechRootDirectory,
+            FileSystemConstants.MetadataSubDirectory,
+            GraphFile);
+        if (!StaticFileIo.TryReadExisting(projectFilePath, Encoding.UTF8, out var json))
+        {
+            graph = null;
+            return false;
+        }
+
+        if (DependenciesGraph.TryDeserialize(json, projectRoot, out var deserializedProject))
+        {
+            graph = deserializedProject;
+            return true;
+        }
+
+        graph = null;
+        return false;
+    }
+
+    public static async Task<DependenciesGraph> AnalyzeSolutionAsync(
+        DirectoryInfo projectRoot,
+        FileInfo solutionFile)
+    {
+        ArgumentNullException.ThrowIfNull(projectRoot);
+        ArgumentNullException.ThrowIfNull(solutionFile);
+        if (!projectRoot.Exists)
+        {
+            throw new ArgumentException("Project root not exists", nameof(projectRoot));
+        }
+
+        if (!solutionFile.Exists)
+        {
+            throw new ArgumentException("Solution file not exists", nameof(solutionFile));
+        }
+
+        if (!solutionFile.FullName.StartsWith(projectRoot.FullName, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Solution file is outside project root", nameof(solutionFile));
+        }
+
+        var actualProjectRoot = new DirectoryInfo(projectRoot.FullName);
+        if (!actualProjectRoot.Exists)
+        {
+            throw new InvalidOperationException("Can't get project root absolute path");
+        }
+
         var results = new ConcurrentBag<AnalyzeResult>();
         using var workspace = MSBuildWorkspace.Create();
-        var solution = await workspace.OpenSolutionAsync(absolutePathToSolutionFile);
+        var solution = await workspace.OpenSolutionAsync(solutionFile.FullName);
 
         var projects = solution.Projects.ToArray();
         var compilationsWithProjects = new List<(CSharpCompilation Compilation, Project Project)>();
@@ -54,7 +121,36 @@ public static class DotnetSolutionDependenciesAnalyzer
 
         var resultUpstream = TransformToResultGraph(upstreamDependenciesGraph);
         var resultDownstream = TransformToResultGraph(downstreamDependenciesGraph);
-        return new(resultUpstream, resultDownstream);
+
+        var filteredUpstream = FilterFilesOutsideProjectDirectory(resultUpstream, actualProjectRoot);
+        var filteredDownstream = FilterFilesOutsideProjectDirectory(resultDownstream, actualProjectRoot);
+
+        return new(actualProjectRoot, filteredUpstream, filteredDownstream);
+    }
+
+    private static Dictionary<FileInfo, HashSet<FileInfo>> FilterFilesOutsideProjectDirectory(
+        Dictionary<FileInfo, HashSet<FileInfo>> graph,
+        DirectoryInfo projectDirectory)
+    {
+        var resultsAccumulator = new Dictionary<FileInfo, HashSet<FileInfo>>();
+        foreach (var (key, values) in graph)
+        {
+            if (key.FullName.StartsWith(projectDirectory.FullName, StringComparison.Ordinal))
+            {
+                var valuesAccumulator = new HashSet<FileInfo>();
+                foreach (var value in values)
+                {
+                    if (value.FullName.StartsWith(projectDirectory.FullName, StringComparison.Ordinal))
+                    {
+                        valuesAccumulator.Add(value);
+                    }
+                }
+
+                resultsAccumulator[key] = valuesAccumulator;
+            }
+        }
+
+        return resultsAccumulator;
     }
 
     private static Dictionary<FileInfo, HashSet<FileInfo>> TransformToResultGraph(Dictionary<string, HashSet<string>> src)
@@ -89,42 +185,58 @@ public static class DotnetSolutionDependenciesAnalyzer
     private static Dictionary<string, HashSet<string>> CreateDownstreamGraphFromUpstreamGraph(
         Dictionary<string, HashSet<string>> upstreamDependenciesGraph)
     {
-        var downstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var downstreamGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (downstreamDependency, upstreamDependencies) in upstreamDependenciesGraph)
         {
-            foreach (var upstreamDependency in upstreamDependencies)
+            if (upstreamDependencies.Count > 0)
             {
-                if (!downstreamDependenciesGraph.TryGetValue(upstreamDependency, out var downstreamDependencies))
+                foreach (var upstreamDependency in upstreamDependencies)
                 {
-                    downstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
-                    downstreamDependenciesGraph[upstreamDependency] = downstreamDependencies;
-                }
+                    if (!downstreamGraph.TryGetValue(upstreamDependency, out var downstreamDependencies))
+                    {
+                        downstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
+                        downstreamGraph[upstreamDependency] = downstreamDependencies;
+                    }
 
-                downstreamDependencies.Add(downstreamDependency);
+                    downstreamDependencies.Add(downstreamDependency);
+                    if (!downstreamGraph.ContainsKey(upstreamDependency))
+                    {
+                        downstreamGraph[upstreamDependency] = new(StringComparer.OrdinalIgnoreCase);
+                    }
+                }
+            }
+
+            if (!downstreamGraph.ContainsKey(downstreamDependency))
+            {
+                downstreamGraph[downstreamDependency] = new(StringComparer.OrdinalIgnoreCase);
             }
         }
 
-        return downstreamDependenciesGraph;
+        return downstreamGraph;
     }
 
     private static Dictionary<string, HashSet<string>> CreateUpstreamGraph(ConcurrentBag<AnalyzeResult> results)
     {
-        var upstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var upstreamGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var foundDependency in results)
         {
-            if (!upstreamDependenciesGraph.TryGetValue(foundDependency.FullPath, out var upstreamDependencies))
+            if (!upstreamGraph.TryGetValue(foundDependency.FullPath, out var upstreamDependencies))
             {
                 upstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
-                upstreamDependenciesGraph[foundDependency.FullPath] = upstreamDependencies;
+                upstreamGraph[foundDependency.FullPath] = upstreamDependencies;
             }
 
             foreach (var dependency in foundDependency.DependsFullPaths)
             {
                 upstreamDependencies.Add(dependency);
+                if (!upstreamGraph.ContainsKey(dependency))
+                {
+                    upstreamGraph[dependency] = new(StringComparer.OrdinalIgnoreCase);
+                }
             }
         }
 
-        return upstreamDependenciesGraph;
+        return upstreamGraph;
     }
 
     private static async Task<List<AnalyzeResult>> AnalyzeCompilationAsync(

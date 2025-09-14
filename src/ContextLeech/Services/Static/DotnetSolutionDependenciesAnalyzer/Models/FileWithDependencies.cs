@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace ContextLeech.Services.Static.DotnetSolutionDependencies.Models;
+namespace ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer.Models;
 
 public class FileWithDependencies
 {

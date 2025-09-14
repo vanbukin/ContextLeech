@@ -1,22 +1,64 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
-using ContextLeech.Services.ProjectScanner.Models;
+using ContextLeech.Constants;
+using ContextLeech.Services.Static.FileIo;
+using ContextLeech.Services.Static.ProjectScanner.Models;
 
-namespace ContextLeech.Services.ProjectScanner.Implementation;
+namespace ContextLeech.Services.Static.ProjectScanner;
 
-public class DefaultProjectScanner : IProjectScanner
+public static class StaticProjectScanner
 {
-    public Project? ScanProject(
+    private const string ProjectFile = "project.json";
+
+    public static void Save(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        var json = project.Serialize();
+        var projectFile = Path.Combine(
+            project.GetRoot().FullName,
+            FileSystemConstants.ContextLeechRootDirectory,
+            FileSystemConstants.MetadataSubDirectory,
+            ProjectFile);
+        StaticFileIo.Write(projectFile, json, Encoding.UTF8);
+    }
+
+    public static bool TryReadExisting(DirectoryInfo projectRoot, [NotNullWhen(true)] out Project? project)
+    {
+        ArgumentNullException.ThrowIfNull(projectRoot);
+        var projectFilePath = Path.Combine(
+            projectRoot.FullName,
+            FileSystemConstants.ContextLeechRootDirectory,
+            FileSystemConstants.MetadataSubDirectory,
+            ProjectFile);
+        if (!StaticFileIo.TryReadExisting(projectFilePath, Encoding.UTF8, out var json))
+        {
+            project = null;
+            return false;
+        }
+
+        if (Project.TryDeserialize(json, projectRoot, out var deserializedProject))
+        {
+            project = deserializedProject;
+            return true;
+        }
+
+        project = null;
+        return false;
+    }
+
+    public static Project Scan(
         DirectoryInfo projectRoot,
         IEnumerable<string>? defaultDirectoriesToIgnore = null)
     {
+        ArgumentNullException.ThrowIfNull(projectRoot);
         // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
-        if (projectRoot?.Exists is not true)
+        if (!projectRoot.Exists)
         {
-            return null;
+            throw new InvalidOperationException("Project directory not exists");
         }
 
         var gitIgnore = LoadGitIgnoreRules(projectRoot);
@@ -24,10 +66,12 @@ public class DefaultProjectScanner : IProjectScanner
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
-        var dirsToIgnore = new HashSet<string>(defaultDirectoriesToIgnore ?? [], StringComparer.OrdinalIgnoreCase)
+        var dirsToIgnore = new HashSet<string>(defaultDirectoriesToIgnore ?? [], StringComparer.OrdinalIgnoreCase);
+        foreach (var defaultDirectoryToIgnore in FileSystemConstants.EmbeddedDirectoriesToIgnore)
         {
-            ".git"
-        };
+            dirsToIgnore.Add(defaultDirectoryToIgnore);
+        }
+
         var stack = new Stack<DirectoryInfo>();
         stack.Push(projectRoot);
         var project = new Project(projectRoot);
