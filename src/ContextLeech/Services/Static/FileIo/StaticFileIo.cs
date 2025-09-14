@@ -31,7 +31,7 @@ public static class StaticFileIo
             return false;
         }
 
-        content = File.ReadAllText(pathToFile, Encoding.UTF8);
+        content = File.ReadAllText(pathToFile, encoding);
         return true;
     }
 }

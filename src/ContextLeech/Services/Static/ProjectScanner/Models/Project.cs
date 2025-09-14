@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using ContextLeech.Constants;
+using ContextLeech.Extensions;
 
 namespace ContextLeech.Services.Static.ProjectScanner.Models;
 
@@ -56,11 +57,10 @@ public class Project
 
     public string Serialize()
     {
-        var root = _projectRoot.FullName;
         var files = new List<string>();
         foreach (var file in _files)
         {
-            var relativePath = Path.GetRelativePath(root, file.FullName).Replace('\\', '/');
+            var relativePath = file.ProjectRelativePath(_projectRoot);
             files.Add(relativePath);
         }
 

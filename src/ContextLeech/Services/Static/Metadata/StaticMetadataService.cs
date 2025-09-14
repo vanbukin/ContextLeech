@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer;
@@ -10,7 +11,10 @@ namespace ContextLeech.Services.Static.Metadata;
 
 public static class StaticMetadataService
 {
-    public static async Task<ProjectMetadata> LoadMetadataAsync(string pathToRepository)
+    public static async Task<ProjectMetadata> LoadMetadataAsync(
+        string pathToRepository,
+        IEnumerable<string>? directoriesToIgnore,
+        IEnumerable<string>? textFileExtensions)
     {
         var projectRoot = new DirectoryInfo(pathToRepository);
 
@@ -21,7 +25,7 @@ public static class StaticMetadataService
 
         if (!StaticProjectScanner.TryReadExisting(projectRoot, out var project))
         {
-            project = StaticProjectScanner.Scan(projectRoot);
+            project = StaticProjectScanner.Scan(projectRoot, directoriesToIgnore, textFileExtensions);
             StaticProjectScanner.Save(project);
         }
 

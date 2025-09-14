@@ -52,7 +52,8 @@ public static class StaticProjectScanner
 
     public static Project Scan(
         DirectoryInfo projectRoot,
-        IEnumerable<string>? defaultDirectoriesToIgnore = null)
+        IEnumerable<string>? directoriesToIgnore,
+        IEnumerable<string>? textFileExtensions)
     {
         ArgumentNullException.ThrowIfNull(projectRoot);
         // ReSharper disable once ConditionalAccessQualifierIsNonNullableAccordingToAPIContract
@@ -66,10 +67,16 @@ public static class StaticProjectScanner
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
 
-        var dirsToIgnore = new HashSet<string>(defaultDirectoriesToIgnore ?? [], StringComparer.OrdinalIgnoreCase);
-        foreach (var defaultDirectoryToIgnore in FileSystemConstants.EmbeddedDirectoriesToIgnore)
+        var dirsToIgnore = new HashSet<string>(directoriesToIgnore ?? [], StringComparer.OrdinalIgnoreCase);
+        foreach (var embeddedDirectoryToIgnore in FileSystemConstants.EmbeddedDirectoriesToIgnore)
         {
-            dirsToIgnore.Add(defaultDirectoryToIgnore);
+            dirsToIgnore.Add(embeddedDirectoryToIgnore);
+        }
+
+        var extensionsToPreserve = new HashSet<string>(textFileExtensions ?? [], StringComparer.OrdinalIgnoreCase);
+        foreach (var extensionToPreserve in FileSystemConstants.EmbeddedTextFilesExtensions)
+        {
+            extensionsToPreserve.Add(extensionToPreserve);
         }
 
         var stack = new Stack<DirectoryInfo>();
@@ -114,7 +121,10 @@ public static class StaticProjectScanner
                     continue;
                 }
 
-                project.AddFile(file);
+                if (extensionsToPreserve.Contains(file.Extension))
+                {
+                    project.AddFile(file);
+                }
             }
 
             // Enumerate subdirectories and push onto stack

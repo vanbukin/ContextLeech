@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using ContextLeech.Constants;
+using ContextLeech.Extensions;
 
 namespace ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer.Models;
 
@@ -77,15 +78,14 @@ public class DependenciesGraph
         DirectoryInfo projectRoot,
         Dictionary<FileInfo, HashSet<FileInfo>> dependencies)
     {
-        var root = projectRoot.FullName;
         var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, values) in dependencies)
         {
-            var keyRelativePath = Path.GetRelativePath(root, key.FullName).Replace('\\', '/');
+            var keyRelativePath = key.ProjectRelativePath(projectRoot);
             var valuesAccumulator = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var value in values)
             {
-                var valueRelativePath = Path.GetRelativePath(root, value.FullName).Replace('\\', '/');
+                var valueRelativePath = value.ProjectRelativePath(projectRoot);
                 valuesAccumulator.Add(valueRelativePath);
             }
 
