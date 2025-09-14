@@ -26,7 +26,7 @@ public static class DotnetSolutionDependenciesAnalyzer
         var solution = await workspace.OpenSolutionAsync(absolutePathToSolutionFile);
 
         var projects = solution.Projects.ToArray();
-        var cSharpCompilations = new List<CSharpCompilation>();
+        var compilationsWithProjects = new List<(CSharpCompilation Compilation, Project Project)>();
         foreach (var project in projects)
         {
             var abstractCompilation = await project.GetCompilationAsync();
@@ -35,12 +35,13 @@ public static class DotnetSolutionDependenciesAnalyzer
                 continue;
             }
 
-            cSharpCompilations.Add(cSharpCompilation);
+            compilationsWithProjects.Add(new(cSharpCompilation, project));
         }
 
-        await Parallel.ForEachAsync(cSharpCompilations, async (cSharpCompilation, _) =>
+        await Parallel.ForEachAsync(compilationsWithProjects, async (compilationWithProject, _) =>
         {
-            var innerResults = await AnalyzeCompilationAsync(cSharpCompilation);
+            var (cSharpCompilation, project) = compilationWithProject;
+            var innerResults = await AnalyzeCompilationAsync(cSharpCompilation, project);
             foreach (var innerResult in innerResults)
             {
                 results.Add(innerResult);
@@ -65,14 +66,26 @@ public static class DotnetSolutionDependenciesAnalyzer
         return dependenciesGraph;
     }
 
-    private static async Task<List<AnalyzeResult>> AnalyzeCompilationAsync(CSharpCompilation compilation)
+    private static async Task<List<AnalyzeResult>> AnalyzeCompilationAsync(
+        CSharpCompilation compilation,
+        Project project)
     {
         var results = new List<AnalyzeResult>();
+        var razorFiles = project.AdditionalDocuments
+            .Where(x => !string.IsNullOrEmpty(x.FilePath))
+            .Select(x => x.FilePath)
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(x => new FileInfo(x))
+            .Where(x => x is { Exists: true, Extension: ".cshtml" or ".razor" })
+            .Select(x => x.FullName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var syntaxTree in compilation.SyntaxTrees)
         {
             var innerResults = await AnalyzeSyntaxTreeAsync(
                 syntaxTree,
-                compilation);
+                compilation,
+                razorFiles);
             results.AddRange(innerResults);
         }
 
@@ -81,7 +94,8 @@ public static class DotnetSolutionDependenciesAnalyzer
 
     private static async Task<List<AnalyzeResult>> AnalyzeSyntaxTreeAsync(
         SyntaxTree syntaxTree,
-        CSharpCompilation compilation)
+        CSharpCompilation compilation,
+        HashSet<string> razorFiles)
     {
         var filePath = syntaxTree.FilePath;
         if (string.IsNullOrEmpty(filePath))
@@ -94,15 +108,16 @@ public static class DotnetSolutionDependenciesAnalyzer
         var typeDeclarations = await GetTypeDeclarationsAsync(syntaxTree);
         foreach (var typeDeclaration in typeDeclarations)
         {
-            var innerResults = await AnalyzeRootTypeDeclarationAsync(
+            var innerResults = await AnalyzeTypeDeclarationAsync(
                 typeDeclaration,
                 semanticModel,
+                syntaxTree,
                 compilation,
-                filePath);
+                filePath,
+                razorFiles);
             results.AddRange(innerResults);
         }
 
-        // todo: Handle razor file
         return results;
     }
 
@@ -118,16 +133,25 @@ public static class DotnetSolutionDependenciesAnalyzer
         return typeDeclarations;
     }
 
-    private static async Task<List<AnalyzeResult>> AnalyzeRootTypeDeclarationAsync(
+    private static async Task<List<AnalyzeResult>> AnalyzeTypeDeclarationAsync(
         TypeDeclarationSyntax typeDeclaration,
         SemanticModel semanticModel,
+        SyntaxTree syntaxTree,
         Compilation compilation,
-        string filePath)
+        string filePath,
+        HashSet<string> razorFiles)
     {
         var sourceFile = new FileInfo(filePath);
         if (!sourceFile.Exists)
         {
-            return new();
+            if (IsRazorFile(syntaxTree, razorFiles, out var newFilePath))
+            {
+                filePath = newFilePath;
+            }
+            else
+            {
+                return new();
+            }
         }
 
         var declaredSymbol = semanticModel.GetDeclaredSymbol(typeDeclaration);
@@ -159,6 +183,35 @@ public static class DotnetSolutionDependenciesAnalyzer
         }
 
         return [new(typeName, filePath, cleanDependencies)];
+    }
+
+    private static bool IsRazorFile(
+        SyntaxTree syntaxTree,
+        HashSet<string> razorFiles,
+        [NotNullWhen(true)] out string? razorFilePath)
+    {
+        var root = syntaxTree.GetRoot();
+        foreach (var trivia in root.GetLeadingTrivia())
+        {
+            if (trivia.GetStructure() is PragmaChecksumDirectiveTriviaSyntax { File.ValueText: { } file }
+                && (file.EndsWith(".razor", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".cshtml", StringComparison.OrdinalIgnoreCase)))
+            {
+                var fileInfo = new FileInfo(file);
+                if (!fileInfo.Exists)
+                {
+                    continue;
+                }
+
+                if (razorFiles.Contains(fileInfo.FullName))
+                {
+                    razorFilePath = fileInfo.FullName;
+                    return true;
+                }
+            }
+        }
+
+        razorFilePath = null;
+        return false;
     }
 
     private static string GetFullTypeName(ITypeSymbol typeSymbol)
