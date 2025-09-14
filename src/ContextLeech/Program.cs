@@ -59,13 +59,13 @@ public static class Program
             new ApiKeyCredential("lm-studio"),
             new()
             {
-                Endpoint = new("http://localhost:1234/v1", UriKind.Absolute),
+                Endpoint = new("http://localhost:8080/v1", UriKind.Absolute),
                 NetworkTimeout = TimeSpan.FromDays(1)
             }));
         builder.Services.AddScoped<ChatClient>(sp =>
         {
             var openAiClient = sp.GetRequiredService<OpenAIClient>();
-            return openAiClient.GetChatClient("default");
+            return openAiClient.GetChatClient("qwen3-coder-30b-a3b-instruct@q4_k_xl");
         });
         builder.Services.AddScoped<IChatClient>(sp =>
         {

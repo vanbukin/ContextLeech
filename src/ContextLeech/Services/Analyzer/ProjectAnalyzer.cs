@@ -85,7 +85,7 @@ public class ProjectAnalyzer
                 {
                     progress++;
                     _logger.AnalyzingFile(progress, total);
-                    var analyzedFile = await _fileAnalyzer.AnalyzeFileAsync(file, chatClient, mcpTools, cancellationToken);
+                    var analyzedFile = await _fileAnalyzer.AnalyzeFileAsync(file, projectMetadata, chatClient, mcpTools, cancellationToken);
                     SaveAnalyzedFile(file, analyzedFile);
                 }
             }
