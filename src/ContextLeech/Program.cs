@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using ContextLeech.Services.Static.DotnetSolutionDependencies;
@@ -19,21 +20,21 @@ public static class Program
     }
 
     [SuppressMessage("Performance", "CA1859:Use concrete types when possible for improved performance")]
-    private static void PrintResults(Dictionary<string, HashSet<string>> results)
+    private static void PrintResults(Dictionary<FileInfo, HashSet<FileInfo>> results)
     {
         Console.WriteLine($"\nFound {results.Count} types:");
         Console.WriteLine(new string('-', 80));
 
-        foreach (var (key, values) in results.OrderBy(r => r.Key))
+        foreach (var (key, values) in results.OrderBy(r => r.Key.FullName))
         {
-            Console.WriteLine($"File: {key}");
+            Console.WriteLine($"File: {key.FullName}");
 
             if (values.Count != 0)
             {
                 Console.WriteLine("External dependencies:");
-                foreach (var dep in values.OrderBy(d => d))
+                foreach (var dep in values.OrderBy(d => d.FullName))
                 {
-                    Console.WriteLine($"  - {dep}");
+                    Console.WriteLine($"  - {dep.FullName}");
                 }
             }
             else

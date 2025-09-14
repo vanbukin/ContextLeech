@@ -49,6 +49,66 @@ public static class DotnetSolutionDependenciesAnalyzer
             }
         });
 
+        var upstreamDependenciesGraph = CreateUpstreamGraph(results);
+        var downstreamDependenciesGraph = CreateDownstreamGraphFromUpstreamGraph(upstreamDependenciesGraph);
+
+        var resultUpstream = TransformToResultGraph(upstreamDependenciesGraph);
+        var resultDownstream = TransformToResultGraph(downstreamDependenciesGraph);
+        return new(resultUpstream, resultDownstream);
+    }
+
+    private static Dictionary<FileInfo, HashSet<FileInfo>> TransformToResultGraph(Dictionary<string, HashSet<string>> src)
+    {
+        var result = new Dictionary<FileInfo, HashSet<FileInfo>>();
+        foreach (var (key, values) in src)
+        {
+            var keyFileInfo = new FileInfo(key);
+            if (!keyFileInfo.Exists)
+            {
+                continue;
+            }
+
+            var valuesAccumulator = new HashSet<FileInfo>();
+            foreach (var value in values)
+            {
+                var valueFileInfo = new FileInfo(value);
+                if (!valueFileInfo.Exists)
+                {
+                    continue;
+                }
+
+                valuesAccumulator.Add(valueFileInfo);
+            }
+
+            result[keyFileInfo] = valuesAccumulator;
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, HashSet<string>> CreateDownstreamGraphFromUpstreamGraph(
+        Dictionary<string, HashSet<string>> upstreamDependenciesGraph)
+    {
+        var downstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (downstreamDependency, upstreamDependencies) in upstreamDependenciesGraph)
+        {
+            foreach (var upstreamDependency in upstreamDependencies)
+            {
+                if (!downstreamDependenciesGraph.TryGetValue(upstreamDependency, out var downstreamDependencies))
+                {
+                    downstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
+                    downstreamDependenciesGraph[upstreamDependency] = downstreamDependencies;
+                }
+
+                downstreamDependencies.Add(downstreamDependency);
+            }
+        }
+
+        return downstreamDependenciesGraph;
+    }
+
+    private static Dictionary<string, HashSet<string>> CreateUpstreamGraph(ConcurrentBag<AnalyzeResult> results)
+    {
         var upstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var foundDependency in results)
         {
@@ -64,23 +124,7 @@ public static class DotnetSolutionDependenciesAnalyzer
             }
         }
 
-        var downstreamDependenciesGraph = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (downstreamDependency, upstreamDependencies) in upstreamDependenciesGraph)
-        {
-            foreach (var upstreamDependency in upstreamDependencies)
-            {
-                if (!downstreamDependenciesGraph.TryGetValue(upstreamDependency, out var downstreamDependencies))
-                {
-                    downstreamDependencies = new(StringComparer.OrdinalIgnoreCase);
-                    downstreamDependenciesGraph[upstreamDependency] = downstreamDependencies;
-                }
-
-                downstreamDependencies.Add(downstreamDependency);
-            }
-        }
-
-        return new(upstreamDependenciesGraph, downstreamDependenciesGraph);
+        return upstreamDependenciesGraph;
     }
 
     private static async Task<List<AnalyzeResult>> AnalyzeCompilationAsync(

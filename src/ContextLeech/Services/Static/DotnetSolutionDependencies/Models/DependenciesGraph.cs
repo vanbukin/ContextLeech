@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace ContextLeech.Services.Static.DotnetSolutionDependencies.Models;
 
 public class DependenciesGraph
 {
-    public DependenciesGraph(Dictionary<string, HashSet<string>> upstream, Dictionary<string, HashSet<string>> downstream)
+    public DependenciesGraph(Dictionary<FileInfo, HashSet<FileInfo>> upstream, Dictionary<FileInfo, HashSet<FileInfo>> downstream)
     {
         ArgumentNullException.ThrowIfNull(upstream);
         ArgumentNullException.ThrowIfNull(downstream);
@@ -13,6 +14,6 @@ public class DependenciesGraph
         Downstream = downstream;
     }
 
-    public Dictionary<string, HashSet<string>> Upstream { get; }
-    public Dictionary<string, HashSet<string>> Downstream { get; }
+    public Dictionary<FileInfo, HashSet<FileInfo>> Upstream { get; }
+    public Dictionary<FileInfo, HashSet<FileInfo>> Downstream { get; }
 }
