@@ -10,9 +10,11 @@ using ContextLeech.Constants;
 using ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer.Models;
 using ContextLeech.Services.Static.FileIo;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
+using CSharpCompilation = Microsoft.CodeAnalysis.CSharp.CSharpCompilation;
+using CSharpExtensions = Microsoft.CodeAnalysis.CSharp.CSharpExtensions;
+using CSharpSyntaxVisitor = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxVisitor;
 
 namespace ContextLeech.Services.Static.DotnetSolutionDependenciesAnalyzer;
 
@@ -327,7 +329,7 @@ public static class StaticDotnetSolutionDependenciesAnalyzer
             }
         }
 
-        var declaredSymbol = semanticModel.GetDeclaredSymbol(typeDeclaration);
+        var declaredSymbol = CSharpExtensions.GetDeclaredSymbol(semanticModel, typeDeclaration);
         if (declaredSymbol is not ITypeSymbol typeSymbol)
         {
             return new();
@@ -657,8 +659,8 @@ public static class StaticDotnetSolutionDependenciesAnalyzer
             {
                 case TypeSyntax typeSyntax:
                     {
-                        var symbolInfo = semanticModel.GetSymbolInfo(typeSyntax);
-                        typeSymbol = symbolInfo.Symbol as ITypeSymbol ?? semanticModel.GetTypeInfo(typeSyntax).Type;
+                        var symbolInfo = CSharpExtensions.GetSymbolInfo(semanticModel, typeSyntax);
+                        typeSymbol = symbolInfo.Symbol as ITypeSymbol ?? CSharpExtensions.GetTypeInfo(semanticModel, typeSyntax).Type;
                         if (typeSymbol is not null && !IsExternalType(typeSymbol))
                         {
                             foreach (var innerDependency in AnalyzeTypeReference(typeSymbol))
@@ -672,13 +674,13 @@ public static class StaticDotnetSolutionDependenciesAnalyzer
 
                 case ObjectCreationExpressionSyntax creation:
                     {
-                        typeSymbol = semanticModel.GetTypeInfo(creation).Type;
+                        typeSymbol = CSharpExtensions.GetTypeInfo(semanticModel, creation).Type;
                         break;
                     }
 
                 case CastExpressionSyntax cast:
                     {
-                        typeSymbol = semanticModel.GetTypeInfo(cast.Type).Type;
+                        typeSymbol = CSharpExtensions.GetTypeInfo(semanticModel, cast.Type).Type;
                         if (typeSymbol is not null && !IsExternalType(typeSymbol))
                         {
                             foreach (var innerDependency in AnalyzeTypeReference(typeSymbol))
@@ -692,7 +694,7 @@ public static class StaticDotnetSolutionDependenciesAnalyzer
 
                 case LocalFunctionStatementSyntax localFunction:
                     {
-                        var localFunctionSymbol = semanticModel.GetDeclaredSymbol(localFunction);
+                        var localFunctionSymbol = CSharpExtensions.GetDeclaredSymbol(semanticModel, localFunction);
                         if (localFunctionSymbol != null)
                         {
                             var innerDependencies = await AnalyzeMethodAsync(localFunctionSymbol, compilation);

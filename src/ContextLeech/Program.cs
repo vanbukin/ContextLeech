@@ -4,11 +4,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Pipelines;
 using System.Text;
-using System.Text.Encodings.Web;
-using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using ContextLeech.BackgroundServices;
 using ContextLeech.Configuration;
+using ContextLeech.Constants;
 using ContextLeech.Infrastructure.Logging;
 using ContextLeech.Mcp.ClientFactory;
 using ContextLeech.Mcp.Tools;
@@ -23,7 +22,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
-using ModelContextProtocol;
 using OpenAI;
 using OpenAI.Chat;
 
@@ -52,7 +50,7 @@ public static class Program
                 options.UseUtcTimestamp = false;
                 options.SingleLine = true;
                 options.IncludeScopes = false;
-                options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss]";
+                options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss.fff]";
                 options.Prefix = null;
             });
         builder.Services.AddScoped<OpenAIClient>(_ => new(
@@ -65,7 +63,7 @@ public static class Program
         builder.Services.AddScoped<ChatClient>(sp =>
         {
             var openAiClient = sp.GetRequiredService<OpenAIClient>();
-            return openAiClient.GetChatClient("qwen3-coder-30b-a3b-instruct@q4_k_xl");
+            return openAiClient.GetChatClient("openai/gpt-oss-20b");
         });
         builder.Services.AddScoped<IChatClient>(sp =>
         {
@@ -89,12 +87,7 @@ public static class Program
         Pipe serverToClientPipe = new();
         builder.Services.AddMcpServer()
             .WithStreamServerTransport(clientToServerPipe.Reader.AsStream(), serverToClientPipe.Writer.AsStream())
-            .WithTools<ToolAnalyzeFile>(new(McpJsonUtilities.DefaultOptions)
-            {
-                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-                DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-                WriteIndented = false
-            });
+            .WithTools<ToolAnalyzeFile>(JsonSerializationConstants.McpJsonOptions);
         builder.Services.AddSingleton(_ => new StreamingMcpClientFactory(clientToServerPipe, serverToClientPipe));
         builder.Services.AddSingleton<FileAnalyzer>();
         builder.Services.AddSingleton<ProjectAnalyzer>();

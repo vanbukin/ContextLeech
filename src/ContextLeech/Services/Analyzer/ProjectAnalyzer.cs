@@ -80,7 +80,9 @@ public class ProjectAnalyzer
             var chatClient = scope.ServiceProvider.GetRequiredService<IChatClient>();
             await using (var mcpClient = await _mcpClientFactory.CreateAsync(cancellationToken))
             {
-                var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: cancellationToken);
+                var mcpTools = await mcpClient.ListToolsAsync(
+                    JsonSerializationConstants.McpJsonOptions,
+                    cancellationToken);
                 foreach (var file in queue)
                 {
                     progress++;

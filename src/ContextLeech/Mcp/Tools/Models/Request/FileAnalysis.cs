@@ -11,14 +11,19 @@ public record FileAnalysis(
     [Description("File category")] Category Category,
     [Description("Key searchable terms, concepts, entities for AI search and discovery")]
     string[] KeyTerms,
+    [Optional]
     [Description("Dependencies and imports")]
     string[]? Dependencies,
+    [Optional]
     [Description("Implementation patterns and conventions")]
     string[]? Patterns,
+    [Optional]
     [Description("Related files and contexts")]
     string[]? RelatedContexts,
+    [Optional]
     [Description("Specific guidance for AI agents working with this code")]
     string? AiGuidance,
+    [Optional]
     [Description("Error handling patterns and strategies")]
     string? ErrorHandling,
     [Optional]
