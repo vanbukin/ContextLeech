@@ -52,7 +52,7 @@ llama-server `
 
 2) Configure ContextLeech:
 
-- Edit `appsettings.json`:
+Edit `appsettings.json`:
 
 ```json
 {
