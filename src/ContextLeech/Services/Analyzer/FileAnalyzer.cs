@@ -279,35 +279,6 @@ public class FileAnalyzer
         return result;
     }
 
-    private static string BuildPrompt(AnalysisQueuedFile file, ProjectMetadata projectMetadata, string fileContents)
-    {
-        var projectRoot = projectMetadata.Project.GetRoot();
-        var filePath = file.FileToAnalyze.ProjectRelativePath(projectRoot);
-        var builder = new StringBuilder();
-        builder.AppendLine("# FilePath");
-        builder.AppendLine(filePath);
-        builder.AppendLine();
-        builder.AppendLine("# UpstreamDependencies");
-        foreach (var upstreamDependency in file.UpstreamDependencies)
-        {
-            var upstreamDependencyPath = upstreamDependency.ProjectRelativePath(projectRoot);
-            builder.AppendLine(upstreamDependencyPath);
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("# DownstreamDependencies");
-        foreach (var downstreamDependency in file.DownstreamDependencies)
-        {
-            var downstreamDependencyPath = downstreamDependency.ProjectRelativePath(projectRoot);
-            builder.AppendLine(downstreamDependencyPath);
-        }
-
-        builder.AppendLine();
-        builder.AppendLine("# Content");
-        builder.Append(fileContents);
-        return builder.ToString();
-    }
-
     private static Func<ChatCompletion, IDictionary<string, BinaryData>> GetSerializedAdditionalRawDataFunc()
     {
         var param = Expression.Parameter(typeof(ChatCompletion), "c");
